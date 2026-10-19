@@ -1,0 +1,144 @@
+# =============================================================================
+# Rain Ripple Key Generator — .gitignore
+# =============================================================================
+# Scope: multi-app repo (Python/uv, Node/pnpm, Flutter/Dart, C++/ESP32, Rust).
+#
+# IMPORTANT:
+#   * Dependency lockfiles are COMMITTED, not ignored:
+#       uv.lock, pnpm-lock.yaml, pubspec.lock, Cargo.lock
+#     Do not add ignore rules for them.
+#   * Keep small, curated test fixtures (e.g. tiny ripple images) tracked;
+#     ignore only large datasets and raw captures.
+#   * Never commit secrets or sensitive image/key material.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Secrets & environment
+# -----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+credentials*.json
+service-account*.json
+
+# -----------------------------------------------------------------------------
+# OS / editor
+# -----------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+desktop.ini
+*~
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# -----------------------------------------------------------------------------
+# Python / uv  (server, tooling)
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+build/
+dist/
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# -----------------------------------------------------------------------------
+# Node / pnpm  (rainrs-website)
+# -----------------------------------------------------------------------------
+node_modules/
+.pnpm-store/
+.npm/
+dist/
+build/
+.vite/
+.next/
+.nuxt/
+.output/
+.turbo/
+.parcel-cache/
+.eslintcache
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# -----------------------------------------------------------------------------
+# Flutter / Dart  (rainrs-mobile)
+# -----------------------------------------------------------------------------
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+**/ios/Flutter/ephemeral/
+**/ios/Pods/
+**/ios/.symlinks/
+**/android/.gradle/
+**/android/captures/
+**/android/local.properties
+**/android/key.properties
+
+# -----------------------------------------------------------------------------
+# C++ / ESP32  (rainrs-embeddedsys)
+# -----------------------------------------------------------------------------
+.pio/
+.pioenvs/
+.piolibdeps/
+sdkconfig.old
+managed_components/
+cmake-build-*/
+*.o
+*.a
+*.elf
+*.hex
+*.map
+*.su
+
+# -----------------------------------------------------------------------------
+# Rust  (rainrs-desktop — language assumed; trim if desktop is not Rust)
+# -----------------------------------------------------------------------------
+target/
+
+# -----------------------------------------------------------------------------
+# Research data & artifacts
+# -----------------------------------------------------------------------------
+# Raw captures / large datasets must not be committed. Keep curated fixtures.
+data/raw/
+datasets/
+captures/
+*.h5
+*.hdf5
+*.npy
+*.npz
+*.parquet
+
+# -----------------------------------------------------------------------------
+# Misc build / temp
+# -----------------------------------------------------------------------------
+tmp/
+temp/
+*.tmp
+*.bak
+core
+*.core
