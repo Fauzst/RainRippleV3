@@ -43,3 +43,10 @@
 - **Test results:** `git log --graph` confirms `prod`=`dev` at baseline and `feat/project-setup` 3 commits ahead. `git ls-remote --heads origin` confirms all three branches on the remote. `git status` clean.
 - **Blockers:** `gh` is not authenticated (no `GH_TOKEN`/`GITHUB_TOKEN` in env), so the `feat/project-setup → prod` PR cannot be created programmatically yet.
 - **Next steps:** Architect to authenticate `gh` (or provide a token / approve the compare-URL route); then open the PR targeting `prod`. Open items: `rainrs-desktop` language, and whether to track the empty app dirs via `.gitkeep`.
+
+### 2026-10-19 — Session 5
+- **Tasks touched:** none in `agent/TASKS.md` (direct architect instruction).
+- **What was done:** Architect authenticated `gh`; a transient keyring read timeout on the first check cleared (verified with `gh api user` → `Fauzst`). Created the pull request from `feat/project-setup` into `prod` via `gh pr create --base prod --head feat/project-setup`, with a prepared summary body.
+- **Test results:** `gh pr view 1` confirms: PR #1, state `OPEN`, base `prod`, head `feat/project-setup`, 9 files changed, +425/−0, not a draft.
+- **Blockers:** none.
+- **Next steps:** Await review/merge of PR #1 (https://github.com/Fauzst/RainRippleV3/pull/1). Open items unchanged: `rainrs-desktop` language; `.gitkeep` for empty app dirs.
