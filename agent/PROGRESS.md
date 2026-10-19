@@ -36,3 +36,10 @@
 - **Test results:** `git config --local --list` and effective `git config` confirm the identity. `ssh -T git@github.com` authenticates successfully (exit 1 is expected — GitHub provides no shell).
 - **Blockers:** none.
 - **Next steps:** Pending architect decision on default branch name (`master` vs `main`); then (if approved) create the initial commit and push to `origin`.
+
+### 2026-10-19 — Session 4
+- **Tasks touched:** none in `agent/TASKS.md` (direct architect instruction).
+- **What was done:** Established the branch model. Renamed the unborn default branch to `prod` with a minimal baseline commit (`chore: initialize repository with .gitignore`). Created `dev` from `prod`, then `feat/project-setup` from `dev`. Committed the scaffolding on `feat/project-setup` only, as three focused commits (AGENTS.md + agent docs; docs/; rainrs-collection layout). Pushed all three branches to `origin`; GitHub set `prod` as the default branch. Installed `gh` v2.102.0 to `~/.local/bin/gh` (no sudo) per architect approval.
+- **Test results:** `git log --graph` confirms `prod`=`dev` at baseline and `feat/project-setup` 3 commits ahead. `git ls-remote --heads origin` confirms all three branches on the remote. `git status` clean.
+- **Blockers:** `gh` is not authenticated (no `GH_TOKEN`/`GITHUB_TOKEN` in env), so the `feat/project-setup → prod` PR cannot be created programmatically yet.
+- **Next steps:** Architect to authenticate `gh` (or provide a token / approve the compare-URL route); then open the PR targeting `prod`. Open items: `rainrs-desktop` language, and whether to track the empty app dirs via `.gitkeep`.
