@@ -10,16 +10,23 @@ experimental key material. Two levels are produced for every capture:
 
 Inputs
 ------
-* :class:`~rainrs_server.models.RippleAttributes` for one capture —
-  typically loaded from the ``images`` table that
+* :class:`~rainrs_server.model.detection.RippleAttributes` for one
+  capture — typically loaded from the ``images`` table that
   :mod:`rainrs_server.process.image_read` writes.
 
 Outputs
 -------
-* :class:`~rainrs_server.models.MasterKey` and a list of
-  :class:`~rainrs_server.models.SlaveKey` objects.
+* :class:`~rainrs_server.model.keys.MasterKey` and a list of
+  :class:`~rainrs_server.model.keys.SlaveKey` objects.
 * Rows in the ``master_keys`` and ``slave_keys`` tables of the SQLite
   database; every slave key references the master key it belongs to.
+
+Data model
+----------
+The values that flow through this stage — the attributes of a capture,
+the parameters of the oscillator system, the state vector of the
+integration and the derived keys — are described in
+:mod:`rainrs_server.model`; the stage only computes with them.
 
 Method
 ------
@@ -56,14 +63,15 @@ import hmac
 import logging
 import math
 import struct
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
-from datetime import UTC, datetime
+from collections.abc import Sequence
 from pathlib import Path
 
 from ..config import resolve_key_bits
-from ..models import MasterKey, RippleAttributes, RippleDetection, SlaveKey
-from ..storage.database import (
+from ..model.base import utc_now_iso
+from ..model.detection import RippleAttributes, RippleDetection
+from ..model.keys import MasterKey, SlaveKey
+from ..model.state import Derivative, RippleWaveParameters, Vector
+from ..output.database import (
     delete_master_key_for_image,
     find_master_key_for_image,
     list_image_ids,
@@ -84,6 +92,7 @@ __all__ = [
     "derive_slave_keys",
     "rk4_integrate",
     "rk4_step",
+    "utc_now_iso",
 ]
 
 #: Identifier stored with every derived key.
@@ -100,17 +109,9 @@ DEFAULT_SAMPLE_EVERY = 10
 MASTER_LABEL = b"rainrs/v1/master"
 SLAVE_LABEL = b"rainrs/v1/slave"
 
-Vector = tuple[float, ...]
-Derivative = Callable[[float, Vector], Vector]
-
 BINDING_HMAC = "hmac"
 BINDING_XOR = "xor"
 ALLOWED_BINDINGS = (BINDING_HMAC, BINDING_XOR)
-
-
-def utc_now_iso() -> str:
-    """Return the current UTC time as an ISO 8601 string."""
-    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 # ---------------------------------------------------------------------------
@@ -182,32 +183,6 @@ def rk4_integrate(
 # ---------------------------------------------------------------------------
 # ODE system
 # ---------------------------------------------------------------------------
-@dataclass(frozen=True, slots=True)
-class RippleWaveParameters:
-    """Parameters of the coupled oscillator system.
-
-    Attributes:
-        mu: Nonlinearity (van der Pol damping) of both oscillators.
-        coupling: Coupling strength between the two oscillators.
-        forcing: Amplitude of the periodic forcing term.
-        phase: Phase of the forcing term in radians.
-    """
-
-    mu: float
-    coupling: float
-    forcing: float
-    phase: float
-
-    def to_dict(self) -> dict[str, float]:
-        """Return the parameters as a plain dictionary."""
-        return {
-            "mu": self.mu,
-            "coupling": self.coupling,
-            "forcing": self.forcing,
-            "phase": self.phase,
-        }
-
-
 class RippleWaveSystem:
     """Two coupled van der Pol oscillators driven by a ripple geometry.
 
@@ -544,14 +519,7 @@ class KeyDeriver:
                 steps=self._steps,
                 sample_every=self._sample_every,
             )
-            master_key = MasterKey(
-                image_id=image_id,
-                key=master_key.key,
-                bits=master_key.bits,
-                algorithm=master_key.algorithm,
-                parameters=master_key.parameters,
-                derived_at=master_key.derived_at,
-            )
+            master_key = master_key.with_image_id(image_id)
             master_key_id = store_master_key(connection, master_key)
 
             slave_keys = derive_slave_keys(
@@ -564,15 +532,7 @@ class KeyDeriver:
             )
             stored_slaves = []
             for slave in slave_keys:
-                stored = SlaveKey(
-                    master_key_id=master_key_id,
-                    image_id=image_id,
-                    ripple_index=slave.ripple_index,
-                    key=slave.key,
-                    bits=slave.bits,
-                    algorithm=slave.algorithm,
-                    derived_at=slave.derived_at,
-                )
+                stored = slave.with_master_key_id(master_key_id)
                 store_slave_key(connection, stored)
                 stored_slaves.append(stored)
 

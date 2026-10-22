@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from rainrs_server.models import DetectionResult, RippleDetection
+from rainrs_server.model.detection import DetectionResult, RippleDetection
 
 
 class StubDetector:

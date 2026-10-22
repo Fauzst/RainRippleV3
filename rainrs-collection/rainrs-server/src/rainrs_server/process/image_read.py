@@ -1,18 +1,26 @@
 """Rain-ripple feature extraction with the trained YOLO26 detector.
 
+The extraction stage is the *process* layer of the pipeline: it takes a
+capture from the input layer, measures it and hands the result to the
+output layer.
+
 Inputs
 ------
 * One captured image file (JPEG, PNG, …) taken from the raw capture
-  directory (``storage/images/raw``).
+  directory (``storage/images/raw``), provided by
+  :class:`~rainrs_server.input.captures.CaptureLibrary`.
 * The trained detector weights
   ``model/content/runs/detect/rain_ripple_yolo26_cpu/weights/best.pt``
   (Ultralytics checkpoint, trained for 416 px inputs on CPU).
 
 Outputs
 -------
-* :class:`~rainrs_server.models.RippleAttributes` — for every detected
-  ripple the centre position and the radius, plus the number of ripples.
-* A JSON attribute document written to ``storage/features/<name>.json``.
+* :class:`~rainrs_server.model.detection.RippleAttributes` — for every
+  detected ripple the centre position and the radius, plus the number of
+  ripples.
+* A JSON attribute document written by
+  :class:`~rainrs_server.output.attributes.AttributeWriter` to
+  ``storage/features/<name>.json``.
 * Rows in the ``images`` and ``ripples`` tables of the SQLite database.
 * The capture is moved from ``storage/images/raw`` to
   ``storage/images/processed`` once its features were stored. When the
@@ -31,27 +39,25 @@ files; development output goes through
 
 from __future__ import annotations
 
-import json
 import logging
-import shutil
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from ultralytics.engine.results import Results
 
-from ..config import SUPPORTED_IMAGE_SUFFIXES, DetectionSettings
-from ..models import (
+from ..config import DetectionSettings
+from ..input.captures import CaptureLibrary, is_supported_image
+from ..model.base import utc_now_iso
+from ..model.detection import DetectionResult, RippleAttributes, RippleDetection
+from ..model.outcome import (
     STATUS_ERROR,
     STATUS_NO_FEATURES,
     STATUS_PROCESSED,
-    DetectionResult,
     ImageOutcome,
-    RippleAttributes,
-    RippleDetection,
 )
-from ..storage.database import open_database, store_image
+from ..output.attributes import AttributeWriter
+from ..output.database import open_database, store_image
 from .dev import dev_print
 
 logger = logging.getLogger(__name__)
@@ -63,17 +69,8 @@ __all__ = [
     "is_supported_image",
     "process_directory",
     "process_image",
+    "utc_now_iso",
 ]
-
-
-def utc_now_iso() -> str:
-    """Return the current UTC time as an ISO 8601 string."""
-    return datetime.now(UTC).isoformat(timespec="seconds")
-
-
-def is_supported_image(path: Path) -> bool:
-    """Return ``True`` when ``path`` looks like a supported image file."""
-    return path.suffix.lower() in SUPPORTED_IMAGE_SUFFIXES
 
 
 class RippleDetector(Protocol):
@@ -186,13 +183,16 @@ class RainRippleDetector:
 class RippleFeatureExtractor:
     """Turn captured images into stored rain-ripple attributes.
 
+    The extractor joins the three layers of the application: it reads
+    the captures from the input layer, measures them and writes the
+    result through the output layer.
+
     Args:
         detector: The detector to run (see :class:`RippleDetector`).
         database_path: SQLite database holding the extracted features.
-        features_dir: Directory for the JSON attribute documents.
-        raw_dir: Directory holding the incoming captures.
-        processed_dir: Directory the captures are moved to after a
-            successful extraction.
+        captures: The capture library the captures are read from and
+            archived in.
+        writer: The writer of the JSON attribute documents.
         move_images: Set to ``False`` to keep the captures in place
             (useful for dry runs).
         delete_without_features: Set to ``False`` to keep captures for
@@ -204,17 +204,15 @@ class RippleFeatureExtractor:
         *,
         detector: RippleDetector,
         database_path: Path,
-        features_dir: Path,
-        raw_dir: Path,
-        processed_dir: Path,
+        captures: CaptureLibrary,
+        writer: AttributeWriter,
         move_images: bool = True,
         delete_without_features: bool = True,
     ) -> None:
         self._detector = detector
         self._database_path = Path(database_path)
-        self._features_dir = Path(features_dir)
-        self._raw_dir = Path(raw_dir)
-        self._processed_dir = Path(processed_dir)
+        self._captures = captures
+        self._writer = writer
         self._move_images = move_images
         self._delete_without_features = delete_without_features
 
@@ -265,7 +263,7 @@ class RippleFeatureExtractor:
             dev_print("no ripple detected in %s - capture discarded", image_path.name)
             image_id = self._store(attributes, status=STATUS_NO_FEATURES)
             if self._delete_without_features:
-                self._delete(image_path)
+                self._captures.discard(image_path)
             return ImageOutcome(
                 source=str(image_path),
                 status=STATUS_NO_FEATURES,
@@ -273,39 +271,19 @@ class RippleFeatureExtractor:
                 ripple_count=0,
             )
 
-        destination = self._destination_for(image_path) if self._move_images else None
-        located = RippleAttributes(
-            source_path=attributes.source_path,
-            image_width=attributes.image_width,
-            image_height=attributes.image_height,
-            detected_at=attributes.detected_at,
-            ripples=attributes.ripples,
-            stored_path=str(destination) if destination else None,
+        destination = (
+            self._captures.destination_for(image_path) if self._move_images else None
+        )
+        located = attributes.with_storage(
+            stored_path=str(destination) if destination else None
         )
         image_id = self._store(located, status=STATUS_PROCESSED)
-
-        located = RippleAttributes(
-            source_path=located.source_path,
-            image_width=located.image_width,
-            image_height=located.image_height,
-            detected_at=located.detected_at,
-            ripples=located.ripples,
-            image_id=image_id,
-            stored_path=located.stored_path,
-        )
-        features_path = self._write_features(located)
+        located = located.with_storage(image_id=image_id)
+        features_path = self._writer.write(located)
 
         if destination is not None:
-            stored_path = self._move_to_processed(image_path, destination)
-            located = RippleAttributes(
-                source_path=located.source_path,
-                image_width=located.image_width,
-                image_height=located.image_height,
-                detected_at=located.detected_at,
-                ripples=located.ripples,
-                image_id=located.image_id,
-                stored_path=str(stored_path),
-            )
+            stored_path = self._captures.archive(image_path)
+            located = located.with_storage(stored_path=str(stored_path))
 
         logger.info("extracted %d ripple(s) from %s", attributes.count, image_path.name)
         dev_print(
@@ -328,22 +306,12 @@ class RippleFeatureExtractor:
 
         Args:
             directory: Directory to scan. Defaults to the raw capture
-                directory of this extractor.
+                directory of the capture library.
 
         Returns:
             One :class:`ImageOutcome` per image, in file-name order.
         """
-        target = Path(directory) if directory is not None else self._raw_dir
-        if not target.is_dir():
-            logger.error("capture directory not found: %s", target)
-            return []
-
-        images = sorted(
-            path
-            for path in target.iterdir()
-            if path.is_file() and is_supported_image(path)
-        )
-        logger.info("found %d capture(s) in %s", len(images), target)
+        images = self._captures.list_captures(directory)
 
         outcomes: list[ImageOutcome] = []
         for image_path in images:
@@ -373,48 +341,6 @@ class RippleFeatureExtractor:
             Exception
         ):  # pragma: no cover - defensive, database must not break the run
             logger.exception("could not record the failure of %s", image_path.name)
-
-    def _write_features(self, attributes: RippleAttributes) -> Path:
-        self._features_dir.mkdir(parents=True, exist_ok=True)
-        stem = Path(attributes.source_path).stem
-        target = self._features_dir / f"{stem}.json"
-        target.write_text(
-            json.dumps(attributes.to_dict(), indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        return target
-
-    def _destination_for(self, image_path: Path) -> Path:
-        """Return the path the capture will be moved to."""
-        self._processed_dir.mkdir(parents=True, exist_ok=True)
-        return self._unique_destination(self._processed_dir / image_path.name)
-
-    def _move_to_processed(self, image_path: Path, destination: Path) -> Path:
-        shutil.move(str(image_path), str(destination))
-        logger.info("moved capture to %s", destination.name)
-        return destination
-
-    def _delete(self, image_path: Path) -> None:
-        try:
-            image_path.unlink()
-        except FileNotFoundError:
-            logger.warning("capture %s was already gone", image_path.name)
-            return
-        logger.info("deleted capture %s", image_path.name)
-
-    @staticmethod
-    def _unique_destination(destination: Path) -> Path:
-        """Return a path that does not exist yet, adding a numeric suffix."""
-        if not destination.exists():
-            return destination
-        stem = destination.stem
-        suffix = destination.suffix
-        counter = 1
-        candidate = destination.with_name(f"{stem}_{counter}{suffix}")
-        while candidate.exists():
-            counter += 1
-            candidate = destination.with_name(f"{stem}_{counter}{suffix}")
-        return candidate
 
 
 def process_image(

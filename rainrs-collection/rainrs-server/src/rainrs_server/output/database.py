@@ -1,6 +1,8 @@
 """SQLite persistence for ripple features and derived research keys.
 
-The database holds four tables:
+The database is the *output* layer of the pipeline: it stores the
+extracted attributes and the derived research artifacts. It holds four
+tables:
 
 ``images``
     One row per processed capture: the source path, the image geometry,
@@ -17,7 +19,7 @@ The database holds four tables:
 
 Usage::
 
-    from rainrs_server.storage.database import open_database
+    from rainrs_server.output.database import open_database
 
     with open_database(paths.database) as connection:
         image_id = store_image(connection, attributes)
@@ -35,15 +37,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from ..models import (
-    STATUS_ERROR,
-    STATUS_NO_FEATURES,
-    STATUS_PROCESSED,
-    MasterKey,
-    RippleAttributes,
-    RippleDetection,
-    SlaveKey,
-)
+from ..model.detection import RippleAttributes, RippleDetection
+from ..model.keys import MasterKey, SlaveKey
+from ..model.outcome import STATUS_ERROR, STATUS_NO_FEATURES, STATUS_PROCESSED
 
 SCHEMA_VERSION = 1
 

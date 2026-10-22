@@ -7,7 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from rainrs_server.models import RippleAttributes, RippleDetection
+from rainrs_server.model.detection import RippleAttributes, RippleDetection
+from rainrs_server.output.database import (
+    find_master_key_for_image,
+    list_slave_keys,
+    open_database,
+    store_image,
+)
 from rainrs_server.process.rungge import (
     ALGORITHM,
     BINDING_HMAC,
@@ -20,12 +26,6 @@ from rainrs_server.process.rungge import (
     parameters_for_ripple,
     rk4_integrate,
     rk4_step,
-)
-from rainrs_server.storage.database import (
-    find_master_key_for_image,
-    list_slave_keys,
-    open_database,
-    store_image,
 )
 
 

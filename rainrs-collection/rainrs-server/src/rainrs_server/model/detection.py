@@ -1,12 +1,12 @@
-"""Data structures shared by the capture-processing and key-derivation stages.
+"""The measured geometry of the rain ripples of a single capture.
 
-The dataclasses in this module are the *contract* between the stages:
+The dataclasses of this module describe what the detector sees in one
+captured image:
 
 * :class:`RippleDetection` — one detected ripple (position, radius, …).
+* :class:`DetectionResult` — the raw detector output for one image.
 * :class:`RippleAttributes` — every measurement extracted from a single
   captured image; this is the input of the Runge–Kutta key derivation.
-* :class:`ImageOutcome` — the result of processing one image file.
-* :class:`MasterKey` / :class:`SlaveKey` — derived research artifacts.
 
 All of them are JSON-serialisable through :meth:`to_dict`, which is what
 the pipeline writes to ``storage/features/*.json`` and to the
@@ -18,10 +18,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-#: Processing outcomes reported by the extraction stage.
-STATUS_PROCESSED = "processed"
-STATUS_NO_FEATURES = "no_features"
-STATUS_ERROR = "error"
+__all__ = [
+    "DetectionResult",
+    "RippleAttributes",
+    "RippleDetection",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +75,21 @@ class RippleDetection:
 
 
 @dataclass(frozen=True, slots=True)
+class DetectionResult:
+    """Raw detector output for a single image.
+
+    Attributes:
+        image_width: Width of the source image in pixels.
+        image_height: Height of the source image in pixels.
+        ripples: The detected ripples, ordered by detector output.
+    """
+
+    image_width: int
+    image_height: int
+    ripples: tuple[RippleDetection, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class RippleAttributes:
     """Every ripple measurement extracted from one captured image.
 
@@ -116,6 +132,35 @@ class RippleAttributes:
             return 0.0
         return sum(r.radius for r in self.ripples) / len(self.ripples)
 
+    def with_storage(
+        self,
+        *,
+        image_id: int | None = None,
+        stored_path: str | None = None,
+    ) -> RippleAttributes:
+        """Return a copy with the storage identifiers filled in.
+
+        The dataclass is frozen and the identifiers of a capture only
+        exist once its attributes were stored, so they are filled in
+        through a copy. A value of ``None`` keeps the current one.
+
+        Args:
+            image_id: Identifier of the stored ``images`` row.
+            stored_path: Path the capture was moved to.
+
+        Returns:
+            The updated attributes.
+        """
+        return RippleAttributes(
+            source_path=self.source_path,
+            image_width=self.image_width,
+            image_height=self.image_height,
+            detected_at=self.detected_at,
+            ripples=self.ripples,
+            image_id=self.image_id if image_id is None else image_id,
+            stored_path=self.stored_path if stored_path is None else stored_path,
+        )
+
     def to_dict(self) -> dict[str, Any]:
         """Return the JSON-serialisable attribute document."""
         return {
@@ -147,71 +192,3 @@ class RippleAttributes:
             image_id=payload.get("image_id"),
             stored_path=payload.get("stored_path"),
         )
-
-
-@dataclass(frozen=True, slots=True)
-class DetectionResult:
-    """Raw detector output for a single image.
-
-    Attributes:
-        image_width: Width of the source image in pixels.
-        image_height: Height of the source image in pixels.
-        ripples: The detected ripples, ordered by detector output.
-    """
-
-    image_width: int
-    image_height: int
-    ripples: tuple[RippleDetection, ...] = ()
-
-
-@dataclass(frozen=True, slots=True)
-class ImageOutcome:
-    """Outcome of processing a single image file."""
-
-    source: str
-    status: str
-    image_id: int | None = None
-    ripple_count: int = 0
-    features_path: str | None = None
-    stored_path: str | None = None
-    error: str | None = None
-
-    @property
-    def succeeded(self) -> bool:
-        """``True`` when features were extracted and stored."""
-        return self.status == STATUS_PROCESSED
-
-
-@dataclass(frozen=True, slots=True)
-class MasterKey:
-    """A master research key derived from the averaged ripple attributes.
-
-    Attributes:
-        image_id: Identifier of the source image in the database.
-        key: Hex-encoded key material (experimental research artifact).
-        bits: Key size in bits (32 or 64).
-        algorithm: Identifier of the derivation procedure.
-        parameters: The averaged attributes and ODE parameters that were
-            used, kept for reproducibility of the research experiment.
-        derived_at: ISO 8601 UTC timestamp.
-    """
-
-    image_id: int
-    key: str
-    bits: int
-    algorithm: str
-    parameters: dict[str, float]
-    derived_at: str
-
-
-@dataclass(frozen=True, slots=True)
-class SlaveKey:
-    """A slave research key bound to exactly one master key."""
-
-    master_key_id: int
-    image_id: int
-    ripple_index: int
-    key: str
-    bits: int
-    algorithm: str
-    derived_at: str

@@ -7,15 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from rainrs_server.models import (
-    STATUS_NO_FEATURES,
-    STATUS_PROCESSED,
-    MasterKey,
-    RippleAttributes,
-    RippleDetection,
-    SlaveKey,
-)
-from rainrs_server.storage.database import (
+from rainrs_server.model.detection import RippleAttributes, RippleDetection
+from rainrs_server.model.keys import MasterKey, SlaveKey
+from rainrs_server.model.outcome import STATUS_NO_FEATURES, STATUS_PROCESSED
+from rainrs_server.output.database import (
     count_images,
     find_master_key_for_image,
     list_image_ids,
@@ -167,7 +162,7 @@ def test_only_one_master_key_per_image(tmp_path: Path) -> None:
 
 
 def test_deleting_master_key_cascades_to_slave_keys(tmp_path: Path) -> None:
-    from rainrs_server.storage.database import delete_master_key_for_image
+    from rainrs_server.output.database import delete_master_key_for_image
 
     with open_database(tmp_path / "rainrs.db") as connection:
         image_id = store_image(connection, _attributes())

@@ -36,7 +36,7 @@ from .config import (
     ServerPaths,
 )
 from .logging_setup import configure_logging
-from .models import STATUS_ERROR, STATUS_NO_FEATURES, STATUS_PROCESSED
+from .model.outcome import STATUS_ERROR, STATUS_NO_FEATURES, STATUS_PROCESSED
 from .process.dev import ENV_DEV_PRINT
 
 
@@ -158,15 +158,16 @@ def cmd_process(args: argparse.Namespace) -> int:
         conf=args.conf, iou=args.iou, imgsz=args.imgsz, device=args.device
     ).validated()
 
+    from .input.captures import CaptureLibrary
+    from .output.attributes import AttributeWriter
     from .process.image_read import RainRippleDetector, RippleFeatureExtractor
 
     detector = RainRippleDetector(weights_path, settings=settings)
     extractor = RippleFeatureExtractor(
         detector=detector,
         database_path=database_path,
-        features_dir=features_dir,
-        raw_dir=raw_dir,
-        processed_dir=processed_dir,
+        captures=CaptureLibrary(raw_dir=raw_dir, processed_dir=processed_dir),
+        writer=AttributeWriter(features_dir),
         move_images=not args.no_move,
         delete_without_features=not args.keep_no_features,
     )

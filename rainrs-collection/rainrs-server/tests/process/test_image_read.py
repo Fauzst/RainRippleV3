@@ -8,14 +8,20 @@ from typing import Any
 
 from conftest import StubDetector, write_capture
 
-from rainrs_server.models import STATUS_ERROR, STATUS_NO_FEATURES, STATUS_PROCESSED
+from rainrs_server.input.captures import CaptureLibrary
+from rainrs_server.model.outcome import (
+    STATUS_ERROR,
+    STATUS_NO_FEATURES,
+    STATUS_PROCESSED,
+)
+from rainrs_server.output.attributes import AttributeWriter
+from rainrs_server.output.database import list_image_ids, load_image, open_database
 from rainrs_server.process.image_read import (
     RippleFeatureExtractor,
     is_supported_image,
     process_directory,
     process_image,
 )
-from rainrs_server.storage.database import list_image_ids, load_image, open_database
 
 
 def _extractor(
@@ -26,9 +32,10 @@ def _extractor(
     return RippleFeatureExtractor(
         detector=detector,
         database_path=pipeline_dirs["database"],
-        features_dir=pipeline_dirs["features"],
-        raw_dir=pipeline_dirs["raw"],
-        processed_dir=pipeline_dirs["processed"],
+        captures=CaptureLibrary(
+            raw_dir=pipeline_dirs["raw"], processed_dir=pipeline_dirs["processed"]
+        ),
+        writer=AttributeWriter(pipeline_dirs["features"]),
         **kwargs,
     )
 
