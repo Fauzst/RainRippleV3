@@ -1,0 +1,67 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "rainrs-server"
+version = "0.1.0"
+description = "Server component of the Rain Ripple Key Generator research project."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "numpy>=2.3",
+    "ultralytics>=8.4",
+    # torch/torchvision are pulled in by ultralytics; they are declared
+    # explicitly so that the CPU-only wheel index below is honoured.
+    "torch>=2.9",
+    "torchvision>=0.24",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.14",
+    "mypy>=1.19",
+    # Documentation generator (S-003): renders the .docx report and the
+    # UML/ERD diagrams. Development-only; not a runtime dependency.
+    "matplotlib>=3.10",
+    "python-docx>=1.2",
+]
+
+# The detection model runs on CPU only (no CUDA device on the reference
+# host), so torch/torchvision are pinned to the PyTorch CPU wheel index
+# instead of the default PyPI wheels, which bundle CUDA runtimes.
+[tool.uv]
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py314"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # import sorting
+    "UP",  # pyupgrade
+    "B",   # bugbear
+]
+
+[tool.mypy]
+python_version = "3.14"
+files = ["src", "tests"]
+warn_unused_configs = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true

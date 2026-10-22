@@ -134,6 +134,43 @@ captures/
 *.parquet
 
 # -----------------------------------------------------------------------------
+# Images (raw captures, generated previews, model artifacts)
+# -----------------------------------------------------------------------------
+# Binary image payloads are never tracked: raw captures are research data
+# and previews/model result plots are reproducible artifacts. Curated,
+# intentionally small test fixtures are re-included at the end of this
+# section.
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.tif
+*.tiff
+*.webp
+*.gif
+*.heic
+
+# Curated test fixtures stay tracked.
+!rainrs-collection/rainrs-server/tests/fixtures/**
+
+# -----------------------------------------------------------------------------
+# Server runtime artifacts (derived features, keys, logs)
+# -----------------------------------------------------------------------------
+# The SQLite database holds derived ripple features and generated key
+# material; the JSON attribute documents are the same features in a
+# second format; the logs hold pipeline traces. None of them may be
+# committed.
+rainrs-collection/rainrs-server/storage/*.db
+rainrs-collection/rainrs-server/storage/*.db-*
+rainrs-collection/rainrs-server/storage/*.sqlite3
+rainrs-collection/rainrs-server/storage/features/
+rainrs-collection/rainrs-server/logs/*.log
+
+# Only the best checkpoint is needed at runtime; "last.pt" is a redundant
+# copy of the final training epoch.
+rainrs-collection/rainrs-server/model/**/weights/last.pt
+
+# -----------------------------------------------------------------------------
 # Misc build / temp
 # -----------------------------------------------------------------------------
 tmp/
