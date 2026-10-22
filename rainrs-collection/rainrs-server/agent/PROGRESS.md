@@ -126,14 +126,6 @@
     reconstructed field by field.
   - The documentation is generated from the catalogue, so the document
     and the code cannot drift apart.
-- **Next steps:** Commit and push the work on `feat/image_process` and
-  update pull request #2 (target `dev`). The architect to note that
-  `dev` is behind `prod` — PR #1 landed the scaffold on `prod` while
-  `dev` is still at the baseline `04fc7ed` — so a `dev` → `prod` sync is
-  needed before this work reaches `prod`. The API surface of the server
-  remains undecided (`agent/PLAN.md`), as do the shared contracts under
-  `shared/contracts/` and `shared/schemas/`; no statistical evaluation
-  of the derived material exists yet (no entropy estimate, no NIST
-  SP 800-22 run).
+- **Next steps:** The work was committed on `feat/image_process` in two commits (`44a940d` the MVC split, `2f0832f` the documentation) and pushed to `origin`; pull request **#2** (into `dev`) was updated with the new scope and the verification results. The architect to note that `dev` is behind `prod` — PR #1 landed the scaffold on `prod` while `dev` is still at the baseline `04fc7ed` — so a `dev` → `prod` sync is needed before this work reaches `prod`. The API surface of the server remains undecided (`agent/PLAN.md`), as do the shared contracts under `shared/contracts/` and `shared/schemas/`; no statistical evaluation of the derived material exists yet (no entropy estimate, no NIST SP 800-22 run).
 
 
