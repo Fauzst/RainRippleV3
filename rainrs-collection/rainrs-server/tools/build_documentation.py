@@ -3,6 +3,10 @@
 The script renders the UML/ERD diagrams with matplotlib and assembles
 them into a Word document with python-docx.
 
+The data model diagram and the data model tables are generated from the
+catalogue in :mod:`rainrs_server.model.schema`, so the documentation
+always describes the data model that the code actually has.
+
 Usage (from the ``rainrs-server`` directory)::
 
     uv run python tools/build_documentation.py
@@ -26,6 +30,8 @@ from docx import Document  # noqa: E402 - documentation tooling
 from docx.enum.text import WD_ALIGN_PARAGRAPH  # noqa: E402
 from docx.shared import Inches, Pt  # noqa: E402
 from matplotlib.patches import FancyBboxPatch, Polygon  # noqa: E402
+
+from rainrs_server.model import schema as data_model  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "docs" / "rainrs-server-documentation.docx"
@@ -369,7 +375,7 @@ def activity_diagram(path: Path) -> Path:
     figure, axes = new_canvas(11, 13)
     centre = 42.0
 
-    draw_actor(axes, centre - 4.0, 93.0, "Capture arrives", width=8.0)
+    draw_actor(axes, centre - 6.0, 93.0, "Capture arrives", width=12.0)
 
     steps: tuple[tuple[str, tuple[str, ...]], ...] = (
         (
@@ -385,7 +391,7 @@ def activity_diagram(path: Path) -> Path:
     y = 82.0
     heights: list[float] = []
     for title, lines in steps:
-        heights.append(draw_centered_box(axes, centre, y, title, lines, width=17.0))
+        heights.append(draw_centered_box(axes, centre, y, title, lines, width=21.0))
         y -= heights[-1] + 4.0
 
     decision_y = y - 4.0
@@ -399,7 +405,7 @@ def activity_diagram(path: Path) -> Path:
             y,
             "Store features",
             ("SQLite: images + ripples", "JSON: storage/features/<name>.json"),
-            width=19.0,
+            width=22.0,
         )
     )
     y -= heights[-1] + 4.0
@@ -410,7 +416,7 @@ def activity_diagram(path: Path) -> Path:
             y,
             "Move capture",
             ("raw/ -> processed/",),
-            width=17.0,
+            width=21.0,
         )
     )
     y -= heights[-1] + 4.0
@@ -421,7 +427,7 @@ def activity_diagram(path: Path) -> Path:
             y,
             "Derive master key",
             ("averaged attributes -> RK4", "SHA-256 digest, 32/64 bit"),
-            width=19.0,
+            width=22.0,
         )
     )
     y -= heights[-1] + 4.0
@@ -432,7 +438,7 @@ def activity_diagram(path: Path) -> Path:
             y,
             "Derive slave keys",
             ("one per ripple -> RK4", "bound to master key (HMAC-SHA256)"),
-            width=19.0,
+            width=22.0,
         )
     )
     y -= heights[-1] + 4.0
@@ -443,7 +449,7 @@ def activity_diagram(path: Path) -> Path:
             y,
             "Store keys",
             ("SQLite: master_keys", "SQLite: slave_keys"),
-            width=17.0,
+            width=21.0,
         )
     )
 
@@ -536,7 +542,7 @@ def sequence_diagram(path: Path) -> Path:
     top = 84.0
     bottom = 6.0
     for x, label in actors:
-        draw_actor(axes, x - 6.0, top, label, width=12.0)
+        draw_actor(axes, x - 6.75, top, label, width=13.5)
         axes.plot([x, x], [bottom, top], color="#9aa5b1", linewidth=1.0, linestyle="--")
 
     def message(
@@ -561,8 +567,8 @@ def sequence_diagram(path: Path) -> Path:
     message(28.0, 68.0, 50.0, "detect(image)")
     message(50.0, 60.0, 28.0, "DetectionResult(ripples)", dashed=True)
     message(28.0, 52.0, 72.0, "store_image(attributes)")
-    draw_self_message(axes, 28.0, 44.0, "write JSON document")
-    draw_self_message(axes, 28.0, 34.0, "move raw/ -> processed/")
+    draw_self_message(axes, 28.0, 44.0, "write attributes JSON", reach=12.0)
+    draw_self_message(axes, 28.0, 34.0, "archive capture file", reach=12.0)
 
     message(7.0, 24.0, 93.0, "derive_for_all()")
     message(93.0, 16.0, 72.0, "load_image(id)")
@@ -581,161 +587,370 @@ def sequence_diagram(path: Path) -> Path:
 
 
 def class_diagram(path: Path) -> Path:
-    """Class diagram of the pipeline modules."""
+    """Class diagram of the pipeline modules, grouped by layer."""
     figure, axes = new_canvas(14, 11)
 
-    detection_lines = (
-        "- weights_path: Path",
-        "- settings: DetectionSettings",
-        "+ detect(path) -> DetectionResult",
-    )
-    extractor_lines = (
-        "- detector: RippleDetector",
-        "- database_path: Path",
-        "+ extract(path) -> RippleAttributes",
-        "+ process_image(path) -> ImageOutcome",
-        "+ process_directory() -> list",
-    )
-    system_lines = (
-        "- parameters: RippleWaveParameters",
-        "+ __call__(t, state) -> Vector",
-    )
-    deriver_lines = (
-        "- database_path: Path",
-        "- bits: int",
-        "+ derive_for_image(id)",
-        "+ derive_for_all()",
-    )
-
-    row1 = 74.0
-    row2 = 48.0
-    row3 = 20.0
-
-    heights = {
-        "detector": box_height(detection_lines),
-        "extractor": box_height(extractor_lines),
-        "system": box_height(system_lines),
-        "deriver": box_height(deriver_lines),
-    }
-    tallest = max(heights.values())
-
-    draw_group(axes, 1.0, row1 - 2.0, 48.0, tallest + 8.0, "Detection stage")
-    draw_group(axes, 51.0, row1 - 2.0, 48.0, tallest + 8.0, "Derivation stage")
-    draw_group(axes, 1.0, row3 - 4.0, 48.0, row2 - row3 - 2.0, "Data model")
-    draw_group(axes, 51.0, row3 - 4.0, 48.0, row2 - row3 - 2.0, "Persistence")
-
-    draw_box(axes, 2.5, row1, "RainRippleDetector", detection_lines, width=21.0)
-    draw_box(axes, 26.0, row1, "RippleFeatureExtractor", extractor_lines, width=21.0)
-    draw_box(axes, 53.0, row1, "RippleWaveSystem", system_lines, width=18.0)
-    draw_box(axes, 76.5, row1, "KeyDeriver", deriver_lines, width=21.0)
+    # -- the three layers ------------------------------------------------
+    draw_group(axes, 1.0, 58.0, 27.0, 38.0, "Input layer")
+    draw_group(axes, 30.0, 58.0, 39.0, 38.0, "Process layer")
+    draw_group(axes, 71.0, 58.0, 28.0, 38.0, "Output layer")
+    draw_group(axes, 1.0, 4.0, 98.0, 50.0, "Data model (rainrs_server.model)")
 
     draw_box(
         axes,
-        2.5,
-        row2,
-        "RippleDetection",
-        ("index, center_x, center_y", "radius, width, height, confidence"),
-        width=21.0,
-    )
-    draw_box(
-        axes,
-        26.0,
-        row2,
-        "RippleAttributes",
+        2.0,
+        70.0,
+        "CaptureLibrary",
         (
-            "source_path, image_width/height",
-            "ripples: tuple[RippleDetection]",
-            "+ count, mean_radius",
+            "- raw_dir: Path",
+            "- processed_dir: Path",
+            "+ list_captures() -> list[Path]",
+            "+ archive(path) -> Path",
+            "+ discard(path)",
         ),
-        width=21.0,
+        width=25.0,
     )
     draw_box(
         axes,
-        53.0,
-        row2,
-        "MasterKey",
-        ("image_id, key, bits", "algorithm, parameters"),
-        width=21.0,
-    )
-    draw_box(
-        axes,
-        76.5,
-        row2,
-        "SlaveKey",
-        ("master_key_id, image_id", "ripple_index, key"),
-        width=21.0,
+        2.0,
+        61.0,
+        "Image suffix rules",
+        ("+ is_supported_image(path) -> bool",),
+        width=25.0,
     )
 
     draw_box(
         axes,
-        2.5,
-        row3,
-        "DetectionResult",
-        ("image_width, image_height", "ripples: tuple[RippleDetection]"),
-        width=21.0,
+        31.0,
+        74.0,
+        "RippleFeatureExtractor",
+        (
+            "- detector: RippleDetector",
+            "- captures: CaptureLibrary",
+            "- writer: AttributeWriter",
+            "+ extract(path) -> RippleAttributes",
+            "+ process_image(path) -> outcome",
+        ),
+        width=19.0,
+        body_size=7,
     )
     draw_box(
         axes,
-        26.0,
-        row3,
-        "ImageOutcome",
-        ("status, image_id", "ripple_count, features_path"),
-        width=21.0,
+        31.0,
+        62.0,
+        "RippleWaveSystem",
+        (
+            "- parameters: RippleWaveParameters",
+            "+ __call__(t, state) -> Vector",
+        ),
+        width=19.0,
+        body_size=7,
     )
     draw_box(
         axes,
-        53.0,
-        row3,
-        "Database functions",
-        ("open_database, store_image", "store_master_key, store_slave_key"),
-        width=21.0,
+        54.0,
+        74.0,
+        "RainRippleDetector",
+        (
+            "- weights_path: Path",
+            "- settings: Detection",
+            "+ detect(path) -> result",
+        ),
+        width=14.0,
+        body_size=7,
     )
     draw_box(
         axes,
-        76.5,
-        row3,
-        "RK4 core",
-        ("rk4_step, rk4_integrate", "derive_master_key, derive_slave_keys"),
-        width=21.0,
+        54.0,
+        62.0,
+        "KeyDeriver",
+        (
+            "- database_path: Path",
+            "- bits: int",
+            "+ derive_for_image(id)",
+            "+ derive_for_all()",
+        ),
+        width=14.0,
+        body_size=7,
     )
 
-    # relations
-    draw_arrow(
+    draw_box(
         axes,
-        (23.5, row1 + 2.0),
-        (26.0, row1 + 2.0),
-        "uses",
-        label_offset=(-1.2, 0.6),
+        72.0,
+        72.0,
+        "AttributeWriter",
+        (
+            "- features_dir: Path",
+            "+ write(attributes) -> Path",
+        ),
+        width=26.0,
     )
-    draw_arrow(axes, (36.5, row1), (13.0, row2 + 7.6), "produces", rad=0.12)
-    draw_arrow(axes, (36.5, row2), (23.5, row2), "uses", label_offset=(-1.2, -1.6))
-    draw_arrow(
+    draw_box(
         axes,
-        (71.0, row1 + 2.0),
-        (76.5, row1 + 2.0),
-        "uses",
-        label_offset=(-1.2, 0.6),
+        72.0,
+        60.0,
+        "SQLite persistence",
+        (
+            "open_database(path)",
+            "store_image, load_image",
+            "store_master_key, store_slave_key",
+        ),
+        width=26.0,
     )
-    draw_arrow(axes, (87.0, row1), (63.5, row2 + 5.7), "produces", rad=-0.12)
+
+    # -- the data model --------------------------------------------------
+    model_boxes = {
+        "RippleDetection": (
+            3.0,
+            40.0,
+            ("index, center_x, center_y, radius", "width, height, confidence"),
+        ),
+        "RippleAttributes": (
+            27.0,
+            40.0,
+            (
+                "source_path, image_width/height",
+                "ripples: tuple[RippleDetection]",
+                "+ count, mean_radius, with_storage",
+            ),
+        ),
+        "MasterKey": (
+            51.0,
+            40.0,
+            ("image_id, key, bits, algorithm", "parameters, derived_at"),
+        ),
+        "Schema catalogue": (
+            75.0,
+            40.0,
+            ("model/schema.py", "field names, types, meaning"),
+        ),
+        "DetectionResult": (
+            3.0,
+            26.0,
+            ("image_width, image_height", "ripples: tuple[RippleDetection]"),
+        ),
+        "RippleWaveParameters": (
+            27.0,
+            26.0,
+            ("mu, coupling, forcing, phase",),
+        ),
+        "SlaveKey": (
+            51.0,
+            26.0,
+            ("master_key_id, image_id", "ripple_index, key, bits"),
+        ),
+        "ImageOutcome": (
+            75.0,
+            26.0,
+            ("source, status, image_id", "ripple_count, features_path, error"),
+        ),
+    }
+    for title, (x, y, lines) in model_boxes.items():
+        draw_box(axes, x, y, title, lines, width=22.0)
+
+    # -- relations --------------------------------------------------------
     draw_arrow(
         axes,
-        (63.5, row2),
-        (63.5, row3 + 5.7),
-        "stores",
-        label_offset=(2.4, 0.0),
+        (27.0, 76.0),
+        (31.0, 76.0),
+        "captures",
+        label_offset=(0.0, 0.8),
     )
     draw_arrow(
         axes,
-        (87.0, row2),
-        (87.0, row3 + 5.7),
-        "stores",
-        label_offset=(2.4, 0.0),
+        (50.0, 78.0),
+        (54.0, 78.0),
+        "detect",
+        label_offset=(0.0, 0.8),
+    )
+    draw_arrow(
+        axes,
+        (54.0, 66.0),
+        (50.0, 66.0),
+        "RK4",
+        label_offset=(0.0, 0.8),
+    )
+    draw_arrow(
+        axes,
+        (14.0, 31.7),
+        (14.0, 40.0),
+        "carries",
+        label_offset=(-7.0, 0.0),
+    )
+    draw_arrow(
+        axes,
+        (38.0, 31.7),
+        (38.0, 40.0),
+        "parameters of",
+        label_offset=(8.0, 0.0),
+    )
+    draw_arrow(
+        axes,
+        (62.0, 31.7),
+        (62.0, 40.0),
+        "bound to",
+        label_offset=(7.0, 0.0),
     )
 
     axes.text(
         50,
         99.0,
         "Class diagram of the rainrs-server pipeline",
+        ha="center",
+        va="top",
+        fontsize=12,
+        fontweight="bold",
+    )
+    return save(figure, path)
+
+
+def _entity_lines(name: str, max_chars: int = 54) -> tuple[str, ...]:
+    """Return the box lines of the catalogue entity called ``name``."""
+    entry = data_model.entity(name)
+    parts = [f"{item.name}: {item.type}" for item in entry.fields]
+    lines: list[str] = []
+    current = ""
+    for part in parts:
+        candidate = f"{current}, {part}" if current else part
+        if current and len(candidate) > max_chars:
+            lines.append(current)
+            current = part
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+    return tuple(lines)
+
+
+def data_model_diagram(path: Path) -> Path:
+    """Diagram of the data model, generated from the schema catalogue."""
+    figure, axes = new_canvas(14, 10)
+
+    columns = {1: 3.0, 2: 37.0, 3: 71.0}
+    width = 26.0
+    row_one = 66.0
+    row_two = 36.0
+    row_three = 6.0
+
+    draw_group(axes, 1.0, 2.0, 98.0, 94.0, "Data model")
+
+    draw_box(
+        axes,
+        columns[1],
+        row_one,
+        "RippleDetection",
+        _entity_lines("RippleDetection"),
+        width=width,
+    )
+    draw_box(
+        axes,
+        columns[2],
+        row_one,
+        "RippleAttributes",
+        _entity_lines("RippleAttributes"),
+        width=width,
+    )
+    draw_box(
+        axes,
+        columns[3],
+        row_one,
+        "MasterKey",
+        _entity_lines("MasterKey"),
+        width=width,
+    )
+    draw_box(
+        axes,
+        columns[1],
+        row_two,
+        "DetectionResult",
+        _entity_lines("DetectionResult"),
+        width=width,
+    )
+    draw_box(
+        axes,
+        columns[2],
+        row_two,
+        "ImageOutcome",
+        _entity_lines("ImageOutcome"),
+        width=width,
+    )
+    draw_box(
+        axes,
+        columns[3],
+        row_two,
+        "SlaveKey",
+        _entity_lines("SlaveKey"),
+        width=width,
+    )
+    draw_box(
+        axes,
+        columns[1],
+        row_three,
+        "RippleWaveParameters",
+        _entity_lines("RippleWaveParameters"),
+        width=width,
+    )
+    draw_box(
+        axes,
+        columns[2],
+        row_three,
+        "Schema catalogue",
+        (
+            "model/schema.py",
+            "name, type and meaning of every field",
+            "verified against the dataclasses",
+        ),
+        width=width,
+    )
+
+    # relations
+    draw_arrow(
+        axes,
+        (columns[2], row_one + 8.0),
+        (columns[1] + width, row_one + 8.0),
+        "1..n ripples",
+        label_offset=(0.0, 0.8),
+    )
+    draw_arrow(
+        axes,
+        (columns[2] + width, row_one + 4.0),
+        (columns[3], row_one + 4.0),
+        "derives",
+        label_offset=(0.0, 0.8),
+    )
+    draw_arrow(
+        axes,
+        (columns[1] + 13.0, row_two + 8.0),
+        (columns[1] + 13.0, row_one),
+        "carries",
+        label_offset=(-8.0, 0.0),
+    )
+    draw_arrow(
+        axes,
+        (columns[2] + 13.0, row_two + 8.0),
+        (columns[2] + 13.0, row_one),
+        "reports",
+        label_offset=(9.0, 0.0),
+    )
+    draw_arrow(
+        axes,
+        (columns[3] + 13.0, row_two + 8.0),
+        (columns[3] + 13.0, row_one),
+        "bound to",
+        label_offset=(8.0, 0.0),
+    )
+    draw_arrow(
+        axes,
+        (columns[1] + 13.0, row_three + 8.0),
+        (columns[1] + 13.0, row_two),
+        "parameters",
+        label_offset=(-9.0, 0.0),
+    )
+
+    axes.text(
+        50,
+        99.5,
+        "Data model of the rainrs-server pipeline",
         ha="center",
         va="top",
         fontsize=12,
@@ -875,24 +1090,24 @@ def component_diagram(path: Path) -> Path:
         axes,
         28.0,
         64.0,
-        "Detection stage",
-        ("process/image_read.py", "RainRippleDetector"),
+        "Input layer",
+        ("input/captures.py", "CaptureLibrary"),
         width=20.0,
     )
     draw_box(
         axes,
         52.0,
         64.0,
-        "Derivation stage",
-        ("process/rungge.py", "RK4 + SHA-256 / HMAC"),
+        "Process layer",
+        ("process/image_read.py", "process/rungge.py"),
         width=20.0,
     )
     draw_box(
         axes,
         76.0,
         64.0,
-        "Storage layer",
-        ("storage/database.py", "SQLite schema"),
+        "Output layer",
+        ("output/attributes.py", "output/database.py"),
         width=20.0,
     )
 
@@ -910,8 +1125,8 @@ def component_diagram(path: Path) -> Path:
         axes,
         28.0,
         10.0,
-        "YOLO26 model",
-        ("model/.../best.pt", "ultralytics + torch (CPU)"),
+        "File system",
+        ("storage/images/raw", "storage/images/processed", "storage/features"),
         width=20.0,
         fill=STORE_FILL,
         edge=STORE_EDGE,
@@ -920,8 +1135,8 @@ def component_diagram(path: Path) -> Path:
         axes,
         52.0,
         10.0,
-        "File system",
-        ("storage/images/raw", "storage/images/processed", "storage/features"),
+        "YOLO26 model",
+        ("model/.../best.pt", "ultralytics + torch (CPU)"),
         width=20.0,
         fill=STORE_FILL,
         edge=STORE_EDGE,
@@ -941,8 +1156,8 @@ def component_diagram(path: Path) -> Path:
     draw_arrow(axes, (24.0, 70.0), (28.0, 70.0))
     draw_arrow(axes, (48.0, 70.0), (52.0, 70.0))
     draw_arrow(axes, (72.0, 70.0), (76.0, 70.0))
-    draw_arrow(axes, (38.0, 64.0), (38.0, 20.0), "loads weights", dashed=True)
-    draw_arrow(axes, (62.0, 64.0), (62.0, 20.0), "reads / writes")
+    draw_arrow(axes, (38.0, 64.0), (38.0, 20.0), "reads / archives")
+    draw_arrow(axes, (62.0, 64.0), (62.0, 20.0), "loads weights", dashed=True)
     draw_arrow(axes, (86.0, 64.0), (86.0, 20.0), "writes", dashed=True)
 
     axes.text(
@@ -1009,11 +1224,12 @@ def build_document(diagrams: dict[str, Path]) -> Document:
         "4. Class diagram (module design)",
         "5. Sequence diagram (runtime behaviour)",
         "6. Entity relationship diagram (database)",
-        "7. Data flow and storage layout",
-        "8. Command line usage",
-        "9. Security considerations",
-        "10. Limitations and known issues",
-        "11. Verification results",
+        "7. Data model",
+        "8. Data flow and storage layout",
+        "9. Command line usage",
+        "10. Security considerations",
+        "11. Limitations and known issues",
+        "12. Verification results",
     ):
         document.add_paragraph(entry, style="List Bullet")
 
@@ -1040,8 +1256,16 @@ def build_document(diagrams: dict[str, Path]) -> Document:
         "database."
     )
     document.add_paragraph(
+        "The application is organised as a simple MVC split. The model "
+        "(rainrs_server.model) describes every value that flows through the "
+        "pipeline; the input layer (rainrs_server.input) owns the incoming captures; "
+        "the process layer (rainrs_server.process) computes with the model; and the "
+        "output layer (rainrs_server.output) stores the results. Section 7 shows the "
+        "shape of the data itself."
+    )
+    document.add_paragraph(
         "The generated material is an experimental research artifact. It is not a "
-        "production cryptographic key - see section 9."
+        "production cryptographic key - see section 10."
     )
 
     document.add_heading("2. Component diagram", level=1)
@@ -1061,8 +1285,8 @@ def build_document(diagrams: dict[str, Path]) -> Document:
     document.add_heading("4. Class diagram (module design)", level=1)
     document.add_picture(str(diagrams["class"]), width=Inches(6.5))
     caption = document.add_paragraph(
-        "Figure 3 - Classes of the detection stage, the derivation stage, the data "
-        "model and the persistence layer."
+        "Figure 3 - Classes of the input layer, the process layer, the output layer "
+        "and the data model."
     )
     caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
@@ -1070,7 +1294,9 @@ def build_document(diagrams: dict[str, Path]) -> Document:
     document.add_picture(str(diagrams["sequence"]), width=Inches(6.5))
     caption = document.add_paragraph(
         "Figure 4 - Runtime sequence between the CLI, the extraction stage, the "
-        "detector, the database and the derivation stage."
+        "detector, the database and the derivation stage. The extractor reads the "
+        "captures through the input layer (CaptureLibrary) and writes through the "
+        "output layer (AttributeWriter and the SQLite database)."
     )
     caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
@@ -1107,10 +1333,67 @@ def build_document(diagrams: dict[str, Path]) -> Document:
         ),
     )
 
-    document.add_heading("7. Data flow and storage layout", level=1)
+    document.add_heading("7. Data model", level=1)
+    document.add_paragraph(
+        "Every value that flows through the pipeline is described in the model "
+        "package (rainrs_server/model). The package holds the dataclasses of the "
+        "data and a declarative catalogue (rainrs_server/model/schema.py) that names "
+        "the field, the type and the meaning of every entity. The catalogue is not a "
+        "copy that can drift away from the code: the test suite compares it with the "
+        "dataclasses and fails when a field was added, renamed or retyped without "
+        "updating the catalogue."
+    )
+    document.add_picture(str(diagrams["data_model"]), width=Inches(6.5))
+    caption = document.add_paragraph(
+        "Figure 6 - The data model of the pipeline, generated from the catalogue in "
+        "rainrs_server/model/schema.py."
+    )
+    caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    document.add_paragraph(
+        "The catalogue covers the following entities. The 'Stored in' column names "
+        "the SQLite table the entity is persisted in; entities without a table are "
+        "transient values that only live inside the pipeline."
+    )
+    add_table(
+        document,
+        ("Entity", "Stored in", "Purpose"),
+        tuple(
+            (entry.name, entry.table or "-", entry.description)
+            for entry in data_model.entities()
+        ),
+    )
+    document.add_paragraph("The fields of every entity:")
+    for entry in data_model.entities():
+        document.add_heading(entry.name, level=2)
+        document.add_paragraph(entry.description)
+        add_table(
+            document,
+            ("Field", "Type", "Nullable", "Description"),
+            tuple(
+                (
+                    item.name,
+                    item.type,
+                    "yes" if item.nullable else "no",
+                    item.description,
+                )
+                for item in entry.fields
+            ),
+        )
+
+    document.add_heading("8. Data flow and storage layout", level=1)
+    document.add_paragraph(
+        "The application package follows the MVC split; the runtime artefacts live "
+        "next to it:"
+    )
     add_code(
         document,
         "rainrs-server/\n"
+        "  src/rainrs_server/\n"
+        "    model/      the data model and its catalogue (schema.py)\n"
+        "    input/      the capture library (captures.py)\n"
+        "    process/    detection (image_read.py) and derivation (rungge.py)\n"
+        "    output/     attribute documents (attributes.py),\n"
+        "                SQLite persistence (database.py)\n"
         "  model/content/runs/detect/rain_ripple_yolo26_cpu/weights/best.pt\n"
         "  storage/\n"
         "    images/raw/          incoming captures (deleted when no ripple)\n"
@@ -1139,7 +1422,7 @@ def build_document(diagrams: dict[str, Path]) -> Document:
         "}",
     )
 
-    document.add_heading("8. Command line usage", level=1)
+    document.add_heading("9. Command line usage", level=1)
     document.add_paragraph(
         "All commands are executed from the rainrs-server directory with uv:"
     )
@@ -1180,7 +1463,7 @@ def build_document(diagrams: dict[str, Path]) -> Document:
         "writes to stdout only and never to the log file."
     )
 
-    document.add_heading("9. Security considerations", level=1)
+    document.add_heading("10. Security considerations", level=1)
     for note in (
         "The generated 32/64 bit values are experimental research artifacts. They "
         "are far too short for cryptographic use and have not been evaluated with "
@@ -1202,7 +1485,7 @@ def build_document(diagrams: dict[str, Path]) -> Document:
     ):
         document.add_paragraph(note, style="List Bullet")
 
-    document.add_heading("10. Limitations and known issues", level=1)
+    document.add_heading("11. Limitations and known issues", level=1)
     for note in (
         "The detector runs on the CPU; a single 200x113 pixel capture needs a few "
         "seconds, so the pipeline is not suited for a high capture rate.",
@@ -1220,7 +1503,7 @@ def build_document(diagrams: dict[str, Path]) -> Document:
     ):
         document.add_paragraph(note, style="List Bullet")
 
-    document.add_heading("11. Verification results", level=1)
+    document.add_heading("12. Verification results", level=1)
     document.add_paragraph(
         "The pipeline was executed on the ten sample captures of "
         "storage/images/raw on the reference host (Debian 13, Intel Core i5-6500, "
@@ -1240,7 +1523,12 @@ def build_document(diagrams: dict[str, Path]) -> Document:
                 "verified with a corrupt capture: error logged, capture kept",
             ),
             ("Key derivation", "10 master keys and 37 slave keys stored"),
-            ("Unit tests", "50 tests pass (pytest)"),
+            (
+                "Data model",
+                "the catalogue of rainrs_server/model/schema.py matches the "
+                "dataclasses (verified by the test suite)",
+            ),
+            ("Unit tests", "79 tests pass (pytest)"),
             ("Lint / format", "ruff check and ruff format --check pass"),
             ("Type check", "mypy reports no issues"),
         ),
@@ -1264,6 +1552,7 @@ def main() -> int:
             "class": class_diagram(target / "class.png"),
             "erd": erd_diagram(target / "erd.png"),
             "component": component_diagram(target / "component.png"),
+            "data_model": data_model_diagram(target / "data_model.png"),
         }
         document = build_document(diagrams)
         document.save(OUTPUT)

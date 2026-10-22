@@ -115,6 +115,60 @@
   verification results. The five rendered diagrams were checked
   programmatically: no overlapping text labels and no label crossing a
   box border.
+
+### S-004: <Add Data Model>
+- **Status:** DONE
+- **Depends on:** --
+- **Description:** On the code we made (S-002 and S-003) add a data model on the functions so we can easily visualize the shape of the data that are flowing.
+- **Acceptance criteria:**
+  - [x] a model folder in rainrs_server
+  - [x] a modular python file that contains the data model (e.g. variable type and names used)
+  - [x] the new python files added should follow data model usage, data model usage should be used as a part of simple MVC architecture for the input, process, and output folders
+- **Verification:** The package was restructured into a simple MVC split.
+  - *Model folder:* `src/rainrs_server/model/` — `base.py` (`JsonObject`,
+    `Serialisable`, `utc_now_iso`), `detection.py` (`RippleDetection`,
+    `DetectionResult`, `RippleAttributes`), `keys.py` (`MasterKey`,
+    `SlaveKey`), `outcome.py` (`ImageOutcome`, `STATUS_*`),
+    `state.py` (`Vector`, `Derivative`, `RippleWaveParameters`,
+    `Trajectory`) and `schema.py`.
+  - *Modular data-model file:* `src/rainrs_server/model/schema.py` is the
+    declarative catalogue of the model — `Field(name, type, description,
+    nullable)`, `Entity(name, description, table, fields)`, the `SCHEMA`
+    tuple and the `ENTITY_CLASSES` registry. `verify()` compares the
+    catalogue with the dataclasses field by field (raw
+    `__annotations__`, `Optional[X]` folded into `X | None`); the test
+    `tests/model/test_schema.py` calls it, so a field that was added,
+    renamed or retyped without updating the catalogue fails the build.
+    `model/schema.py` also generates the data model diagram and the
+    per-entity schema tables of the documentation, so the document
+    cannot drift away from the code.
+  - *MVC usage:* `input/captures.py` (`CaptureLibrary`,
+    `is_supported_image`) owns the incoming captures, `process/` owns the
+    two stages (`image_read.py`, `rungge.py`) and `output/` owns the
+    outgoing data (`attributes.py`, `database.py` — moved from
+    `storage/`). `RippleFeatureExtractor` now receives the detector, the
+    capture library and the attribute writer as collaborators instead of
+    reaching for the filesystem and SQLite itself. `models.py` and
+    `storage/` were removed; the dependency direction is one-way
+    (`input`/`output` → `model`, `process` → `model` + both sides).
+  - *Behaviour preserved:* a real run over the ten sample captures gives
+    the same result as before the refactoring (`processed=10
+    no_features=0 errors=0`, 10 master keys, 37 slave keys), and the
+    derived master and slave keys are byte-identical to the ones written
+    by the previous implementation (compared programmatically; no key
+    material was printed).
+  - *Checks:* `uv run pytest` → 79 passed, `uv run ruff check .` clean,
+    `uv run ruff format --check .` clean, `uv run mypy` → no issues in
+    32 source files.
+  - *Documentation:* `docs/rainrs-server-documentation.docx` was
+    regenerated (12 sections, 11 tables, 6 diagrams) and now contains the
+    data model diagram and one table per entity (field, type, nullable,
+    description) generated from the catalogue. All six diagrams were
+    verified programmatically: no text leaves its frame, no two labels
+    overlap and no arrow crosses a box.
+  - The rationale is recorded in
+    `docs/decisions/0003-rainrs-server-mvc-data-model.md`.
+
 ## Active
 
 ## Done
@@ -123,5 +177,6 @@
 - S-002 — Yolo26 Model Integration
 - S-002 — Rungge-Kutta Integration
 - S-003 — Document
+- S-004 — Add Data Model
 
 ## Cancelled

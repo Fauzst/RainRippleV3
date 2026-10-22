@@ -35,6 +35,26 @@ material in two stages.
    that is bound to its master key. All keys are written to the SQLite
    database.
 
+## Architecture
+
+The package is a simple MVC split:
+
+| Layer | Package | Responsibility |
+|---|---|---|
+| Model | `src/rainrs_server/model/` | Every value that flows through the pipeline, plus the catalogue that names the fields, the types and their meaning. |
+| Input | `src/rainrs_server/input/` | The incoming captures (`CaptureLibrary`, `is_supported_image`). |
+| Process | `src/rainrs_server/process/` | The two stages: detection and feature extraction, Runge–Kutta key derivation. |
+| Output | `src/rainrs_server/output/` | The outgoing data: the JSON attribute documents and the SQLite rows. |
+
+`model/schema.py` holds the **catalogue** of the model (`SCHEMA`): one
+entry per entity with the name, the type, the nullability and the
+meaning of every field. The catalogue is compared against the
+dataclasses by the test suite, so a field that was added, renamed or
+retyped without updating the catalogue fails the build. The same
+catalogue generates the data model diagram and the schema tables in
+`docs/rainrs-server-documentation.docx`, so the documentation cannot
+drift away from the code either.
+
 ## Tech Stack
 
 - Language: Python 3.14.x (uv-managed CPython 3.14.8)
@@ -129,6 +149,7 @@ pass before a task is marked `DONE`.
 
 - `docs/rainrs-server-documentation.docx` — the full report with the
   component, activity, class, sequence and entity relationship diagrams
+  plus the data model diagram and the per-entity schema tables
   (regenerate with `uv run python tools/build_documentation.py`)
 - `AGENTS.md` — agent instructions for working in this application
 - `agent/PLAN.md` — design draft, goals, architecture, open questions

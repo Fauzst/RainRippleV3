@@ -3,18 +3,26 @@
 ## `rainrs-server-documentation.docx`
 
 The main report of this application: overview of the two pipeline
-stages, the storage layout, the command line reference, the security
-considerations, the known limitations and the verification results.
+stages, the data model, the storage layout, the command line reference,
+the security considerations, the known limitations and the verification
+results.
 
-It embeds five diagrams:
+It embeds six diagrams:
 
 | # | Diagram | Shows |
 |---|---|---|
 | 1 | Component | The modules of `rainrs_server` and the files and services they talk to. |
 | 2 | Activity | The flow of one capture through detection, storage, movement and key derivation, including the no-feature and error branches. |
-| 3 | Class | The classes of the detection stage, the derivation stage, the data model and the persistence layer, with their relations. |
+| 3 | Class | The classes of the input layer, the process layer, the output layer and the data model, with their relations. |
 | 4 | Sequence | The runtime order between the CLI, the extraction stage, the detector, the database and the derivation stage. |
 | 5 | ERD | The four tables of `storage/rainrs.db` and their relationships. |
+| 6 | Data model | The entities of `rainrs_server.model` and the fields they are built from. |
+
+Section 7 of the document describes the data model: one table per
+entity with the field names, the types, the nullability and the
+meaning of every field. The tables and the diagram are generated from
+the catalogue in `src/rainrs_server/model/schema.py`, so they describe
+the code that actually runs.
 
 ### Regenerating the document
 
@@ -32,7 +40,7 @@ the repository. `matplotlib` and `python-docx` are development
 dependencies; they are not needed at runtime.
 
 The rendered diagrams were verified programmatically: no two text labels
-overlap and no label crosses a box border.
+overlap, no label crosses a box border and no text leaves its frame.
 
 ## Other documentation
 

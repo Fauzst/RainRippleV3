@@ -46,3 +46,94 @@
   - The derivation is **deterministic**: the same capture always yields the same key. The unpredictability of the artifact comes from the physical capture, not from the algorithm — an attacker who knows the capture can recompute the key. The outputs are experimental 32/64-bit research artifacts and are documented as unsuitable for production encryption.
 - **Next steps:** The architect to review `agent/PLAN.md` for the still-undecided API surface (the pipeline currently has a CLI only) and to define the shared contracts under `shared/contracts/` and `shared/schemas/` at the repository root.
 
+---
+
+### 2026-10-22 — Session 3
+- **Tasks touched:** S-004 (Add Data Model).
+- **What was done:**
+  - **The MVC split.** The package was restructured into
+    `model/` / `input/` / `process/` / `output/`:
+    - `model/base.py` — `JsonObject`, `Serialisable`, `utc_now_iso()`;
+    - `model/detection.py` — `RippleDetection`, `DetectionResult`,
+      `RippleAttributes` (+ `with_storage()`);
+    - `model/keys.py` — `MasterKey` (+ `with_image_id()`), `SlaveKey`
+      (+ `with_master_key_id()`);
+    - `model/outcome.py` — `ImageOutcome` and the `STATUS_*` constants;
+    - `model/state.py` — `Vector`, `Derivative`,
+      `RippleWaveParameters`, `Trajectory` (moved out of
+      `process/rungge.py`, re-exported there for API stability);
+    - `model/schema.py` — the declarative catalogue of the model;
+    - `input/captures.py` — `CaptureLibrary` (list / archive / discard)
+      and `is_supported_image`;
+    - `output/attributes.py` — `AttributeWriter` (the JSON documents);
+    - `output/database.py` — the SQLite schema and persistence, moved
+      from `storage/`.
+    `models.py` and the `storage/` package were removed without a
+    compatibility shim. The dependency direction is one-way: `input`
+    and `output` know the model, `process` knows the model and both
+    sides, and the model knows nothing else.
+  - **The data model as a catalogue.** `model/schema.py` holds
+    `Field(name, type, description, nullable)`,
+    `Entity(name, description, table, fields)`, the `SCHEMA` tuple and
+    the `ENTITY_CLASSES` registry. `verify()` compares the catalogue
+    with the dataclasses field by field (the raw `__annotations__` are
+    compared, `Optional[X]` is folded into `X | None`); the new test
+    `tests/model/test_schema.py` calls it, so a field that was added,
+    renamed or retyped without updating the catalogue fails the build.
+    The same catalogue generates the data model diagram and the
+    per-entity schema tables of the documentation.
+  - **The stages own their collaborators.**
+    `RippleFeatureExtractor` no longer reaches for the filesystem or
+    for SQLite: it receives the detector, the capture library and the
+    attribute writer, and the CLI builds them.
+  - **Tests.** `tests/storage/test_database.py` moved to
+    `tests/output/test_database.py`; new tests for the model
+    (`tests/model/test_model.py`), the catalogue
+    (`tests/model/test_schema.py`), the input layer
+    (`tests/input/test_captures.py`) and the attribute writer
+    (`tests/output/test_attributes.py`).
+  - **Documentation.** `tools/build_documentation.py` was extended:
+    the class diagram now shows the four layers, a new **data model
+    diagram** was added (generated from the catalogue) and section 7 of
+    the document describes the model with one table per entity (field,
+    type, nullable, description). `docs/rainrs-server-documentation.docx`
+    was regenerated (12 sections, 11 tables, 6 diagrams). The READMEs
+    (`README.md`, `src/rainrs_server/README.md`, `docs/README.md`) were
+    updated for the new layout and `agent/PLAN.md` describes the layers
+    and the data flow.
+  - **Decision record.** Added
+    `docs/decisions/0003-rainrs-server-mvc-data-model.md` at the
+    repository root, recording the split, the declarative catalogue, the
+    injected collaborators and the frozen-dataclass copy helpers.
+- **Test results:** `uv run pytest` → **79 passed**;
+  `uv run ruff check .` → all checks passed;
+  `uv run ruff format --check .` → 43 files already formatted;
+  `uv run mypy` → success, no issues in 32 source files.
+  *Behaviour preservation:* a real run over the ten sample captures into
+  a temporary home gave `processed=10 no_features=0 errors=0` and
+  `derived_master_keys=10`; the derived master and slave keys are
+  **byte-identical** to the ones in the pre-refactor database (compared
+  programmatically — no key material was printed). The log of that run
+  contains no key material and no feature values.
+  *Diagrams:* all six rendered diagrams were checked programmatically —
+  **0 texts leaving their frame, 0 label overlaps, 0 arrow crossings**.
+- **Blockers:** none.
+- **Notes / decisions:**
+  - The catalogue deliberately duplicates the dataclass definitions: it
+    adds the *meaning* of a field, which a dataclass cannot carry. The
+    duplication is kept in check by `verify()` and the test suite.
+  - The frozen model classes get `with_*` copy helpers instead of being
+    reconstructed field by field.
+  - The documentation is generated from the catalogue, so the document
+    and the code cannot drift apart.
+- **Next steps:** Commit and push the work on `feat/image_process` and
+  update pull request #2 (target `dev`). The architect to note that
+  `dev` is behind `prod` — PR #1 landed the scaffold on `prod` while
+  `dev` is still at the baseline `04fc7ed` — so a `dev` → `prod` sync is
+  needed before this work reaches `prod`. The API surface of the server
+  remains undecided (`agent/PLAN.md`), as do the shared contracts under
+  `shared/contracts/` and `shared/schemas/`; no statistical evaluation
+  of the derived material exists yet (no entropy estimate, no NIST
+  SP 800-22 run).
+
+
